@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: melomix-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=melomix
+
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: melomix-ml
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - ML_HOST=0.0.0.0
+      - ML_PORT=8000
+    depends_on:
+      - mongodb
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: melomix-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongodb:27017/melomix
+      - JWT_SECRET=${JWT_SECRET:-melomix_default_jwt_secret_change_in_production}
+      - JWT_EXPIRES_IN=7d
+      - ML_SERVICE_URL=http://ml-service:8000
+      - CLIENT_URL=http://localhost:5173
+    depends_on:
+      - mongodb
+      - ml-service
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: melomix-frontend
+    restart: always
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_API_URL=http://localhost:5000/api
+    depends_on:
+      - backend
+
+volumes:
+  mongo_data:
